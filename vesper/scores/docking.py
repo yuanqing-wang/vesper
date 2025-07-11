@@ -35,10 +35,8 @@ def run_vina(receptor_pdbqt, ligand_pdbqt, center, size):
     # Run docking
     v.dock(exhaustiveness=8, n_poses=1)
     affinity = v.score()
+    print(affinity)
     print(f'Predicted binding affinity: {affinity:.2f} kcal/mol')
-
-    # Save pose
-    v.write_poses('out_ligand.pdbqt', n_poses=1)
 
 # === USER INPUT ===
 smiles = "CCO"  # replace with your SMILES
