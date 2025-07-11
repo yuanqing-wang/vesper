@@ -2,6 +2,9 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 from vina import Vina
 import os
+from pdbfixer import PDBFixer
+from openmm.app import PDBFile
+import tempfile
 
 def smiles_to_pdbqt(smiles, pdbqt_path):
     # Generate 3D conformation from SMILES
@@ -22,36 +25,47 @@ def prepare_receptor_pdbqt(pdb_path, pdbqt_path):
     # Convert receptor PDB to PDBQT using Open Babel
     os.system(f'obabel {pdb_path} -O {pdbqt_path}')
     
-def run_vina(receptor_pdbqt, ligand_pdbqt, center, size):
-    v = Vina(sf_name='vina')
+def get_pdb(pdb_code, pdb_path):
+    # Download PDB file if not exists
+    if not os.path.exists(pdb_path):
+        os.system(f'wget -O {pdb_path} https://files.rcsb.org/download/{pdb_code}.pdb')
+        
+def clean_pdb_with_pdbfixer(input_pdb, output_pdb):
+    fixer = PDBFixer(filename=input_pdb)
+    fixer.findMissingResidues()
+    fixer.findMissingAtoms()
+    fixer.addMissingAtoms()
+    fixer.addMissingHydrogens()
+    # Remove water and ions
+    fixer.removeChains(chain_ids=[chain.id for chain in fixer.topology.chains() if any(res.name in ['HOH', 'WAT', 'NA', 'K', 'CL', 'CA', 'MG', 'ZN', 'SO4', 'PO4'] for res in chain.residues())])
+    with open(output_pdb, 'w') as f:
+        PDBFile.writeFile(fixer.topology, fixer.positions, f)
+    fixer = PDBFixer(filename=input_pdb)
+    fixer.findMissingResidues()
+    fixer.findMissingAtoms()
+    fixer.addMissingAtoms()
+    fixer.addMissingHydrogens()
+    with open(output_pdb, 'w') as f:
+        PDBFile.writeFile(fixer.topology, fixer.positions, f)
+    
+    
+def run_vina(pdb_code, smiles, center=0.0, size=20.0):
+    # Download PDB if needed and clean it up
+    get_pdb(pdb_code, pdb_code + ".pdb")
+    clean_pdb_with_pdbfixer(pdb_code + ".pdb", "clean_" + pdb_code + ".pdb")
 
-    # Set receptor and ligand
-    v.set_receptor(receptor_pdbqt)
-    v.set_ligand_from_file(ligand_pdbqt)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        receptor_pdbqt = os.path.join(tmpdir, "receptor.pdbqt")
+        ligand_pdbqt = os.path.join(tmpdir, "ligand.pdbqt")
+        prepare_receptor_pdbqt("clean_" + pdb_code + ".pdb", receptor_pdbqt)
+        smiles_to_pdbqt(smiles, ligand_pdbqt)
 
-    # Set box
-    v.compute_vina_maps(center=center, box_size=size)
+        v = Vina(sf_name='vina')
+        v.set_receptor(receptor_pdbqt)
+        v.set_ligand_from_file(ligand_pdbqt)
+        v.compute_vina_maps(center=center, box_size=size)
+        v.dock(exhaustiveness=8, n_poses=1)
+        affinity = v.score()
+        print(affinity)
+        print(f'Predicted binding affinity: {affinity:.2f} kcal/mol')
 
-    # Run docking
-    v.dock(exhaustiveness=8, n_poses=1)
-    affinity = v.score()
-    print(affinity)
-    print(f'Predicted binding affinity: {affinity:.2f} kcal/mol')
-
-# === USER INPUT ===
-smiles = "CCO"  # replace with your SMILES
-receptor_pdb = "receptor.pdb"  # replace with your receptor PDB path
-
-# === FILE PREP ===
-ligand_pdbqt = "ligand.pdbqt"
-receptor_pdbqt = "receptor.pdbqt"
-
-smiles_to_pdbqt(smiles, ligand_pdbqt)
-prepare_receptor_pdbqt(receptor_pdb, receptor_pdbqt)
-
-# === BOX SETUP ===
-# You must choose this based on known site or guess. Example:
-center = [0, 0, 0]
-size = [20, 20, 20]
-
-run_vina(receptor_pdbqt, ligand_pdbqt, center=center, size=size)
