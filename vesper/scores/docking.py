@@ -1,3 +1,4 @@
+import pdb
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from vina import Vina
@@ -43,24 +44,32 @@ def clean_pdb_with_pdbfixer(input_pdb, output_pdb):
         PDBFile.writeFile(fixer.topology, fixer.positions, f)
     
     
-def run_vina(pdb_code, smiles, center=[0.0, 0.0, 0.0], size=[20.0, 20.0, 20.0]):
-    # Download PDB if needed and clean it up
-    # get_pdb(pdb_code, pdb_code + ".pdb")
-    # clean_pdb_with_pdbfixer(pdb_code + ".pdb", "clean_" + pdb_code + ".pdb")
-
+def run_vina(pdb_code, smiles, center=[0.0, 0.0, 0.0], size=[50.0, 50.0, 50.0]):
+    if isinstance(smiles, str):
+        smiles = [smiles]
     with tempfile.TemporaryDirectory() as tmpdir:
-        receptor_pdbqt = os.path.join(tmpdir, "receptor.pdbqt")
-        ligand_pdbqt = os.path.join(tmpdir, "ligand.pdbqt")
-        prepare_receptor_pdbqt("clean_" + pdb_code + ".pdb", receptor_pdbqt)
-        smiles_to_pdbqt(smiles, ligand_pdbqt)
-
+        # Download PDB if needed and clean it up
+        
+        pdb_path = os.path.join(tmpdir, pdb_code + ".pdb")
+        clean_path = os.path.join(tmpdir, "clean_" + pdb_code + ".pdb")
+        receptor_path = os.path.join(tmpdir, "receptor.pdbqt")
+        
+        get_pdb(pdb_code, pdb_path)
+        clean_pdb_with_pdbfixer(pdb_path, clean_path)
+        prepare_receptor_pdbqt(clean_path, receptor_path)
+        
         v = Vina(sf_name='vina')
-        v.set_receptor(receptor_pdbqt)
-        v.set_ligand_from_file(ligand_pdbqt)
-        v.compute_vina_maps(center=center, box_size=size)
-        v.dock(exhaustiveness=8, n_poses=1)
-        affinity = v.score()[0]
-        print(affinity)
+        v.set_receptor(receptor_path)
+        
+        affinities = []
+        for ligand in smiles:
+            ligand_path = os.path.join(tmpdir, "ligand.pdbqt")
+            smiles_to_pdbqt(ligand, ligand_path)
+            v.set_ligand_from_file(ligand_path)
+            v.compute_vina_maps(center=center, box_size=size)
+            v.dock(exhaustiveness=8, n_poses=1)
+            affinity = v.score()[0]
+            affinities.append(affinity)
 
 if __name__ == "__main__":
     # Example usage
