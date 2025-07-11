@@ -23,7 +23,7 @@ def smiles_to_pdbqt(smiles, pdbqt_path):
 
 def prepare_receptor_pdbqt(pdb_path, pdbqt_path):
     # Convert receptor PDB to PDBQT using Open Babel
-    os.system(f'obabel {pdb_path} -O {pdbqt_path}')
+    os.system(f'prepare_receptor -r {pdb_path} -o {pdbqt_path}')
     
 def get_pdb(pdb_code, pdb_path):
     # Download PDB file if not exists
@@ -37,16 +37,16 @@ def clean_pdb_with_pdbfixer(input_pdb, output_pdb):
     fixer.addMissingAtoms()
     fixer.addMissingHydrogens()
     # Remove water and ions
-    chains_to_remove = [chain for chain in fixer.topology.chains() if any(res.name in ['HOH', 'WAT', 'NA', 'K', 'CL', 'CA', 'MG', 'ZN', 'SO4', 'PO4'] for res in chain.residues())]
+    chains_to_remove = [chain.index for chain in fixer.topology.chains() if any(res.name in ['HOH', 'WAT', 'NA', 'K', 'CL', 'CA', 'MG', 'ZN', 'SO4', 'PO4'] for res in chain.residues())]
     fixer.removeChains(chains_to_remove)
     with open(output_pdb, 'w') as f:
         PDBFile.writeFile(fixer.topology, fixer.positions, f)
     
     
-def run_vina(pdb_code, smiles, center=0.0, size=20.0):
+def run_vina(pdb_code, smiles, center=[0.0, 0.0, 0.0], size=[20.0, 20.0, 20.0]):
     # Download PDB if needed and clean it up
-    get_pdb(pdb_code, pdb_code + ".pdb")
-    clean_pdb_with_pdbfixer(pdb_code + ".pdb", "clean_" + pdb_code + ".pdb")
+    # get_pdb(pdb_code, pdb_code + ".pdb")
+    # clean_pdb_with_pdbfixer(pdb_code + ".pdb", "clean_" + pdb_code + ".pdb")
 
     with tempfile.TemporaryDirectory() as tmpdir:
         receptor_pdbqt = os.path.join(tmpdir, "receptor.pdbqt")
@@ -59,9 +59,8 @@ def run_vina(pdb_code, smiles, center=0.0, size=20.0):
         v.set_ligand_from_file(ligand_pdbqt)
         v.compute_vina_maps(center=center, box_size=size)
         v.dock(exhaustiveness=8, n_poses=1)
-        affinity = v.score()
+        affinity = v.score()[0]
         print(affinity)
-        print(f'Predicted binding affinity: {affinity:.2f} kcal/mol')
 
 if __name__ == "__main__":
     # Example usage
