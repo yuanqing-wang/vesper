@@ -37,14 +37,8 @@ def clean_pdb_with_pdbfixer(input_pdb, output_pdb):
     fixer.addMissingAtoms()
     fixer.addMissingHydrogens()
     # Remove water and ions
-    fixer.removeChains(chain_ids=[chain.id for chain in fixer.topology.chains() if any(res.name in ['HOH', 'WAT', 'NA', 'K', 'CL', 'CA', 'MG', 'ZN', 'SO4', 'PO4'] for res in chain.residues())])
-    with open(output_pdb, 'w') as f:
-        PDBFile.writeFile(fixer.topology, fixer.positions, f)
-    fixer = PDBFixer(filename=input_pdb)
-    fixer.findMissingResidues()
-    fixer.findMissingAtoms()
-    fixer.addMissingAtoms()
-    fixer.addMissingHydrogens()
+    chains_to_remove = [chain for chain in fixer.topology.chains() if any(res.name in ['HOH', 'WAT', 'NA', 'K', 'CL', 'CA', 'MG', 'ZN', 'SO4', 'PO4'] for res in chain.residues())]
+    fixer.removeChains(chains_to_remove)
     with open(output_pdb, 'w') as f:
         PDBFile.writeFile(fixer.topology, fixer.positions, f)
     
