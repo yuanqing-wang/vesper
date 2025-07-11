@@ -69,3 +69,8 @@ def run_vina(pdb_code, smiles, center=0.0, size=20.0):
         print(affinity)
         print(f'Predicted binding affinity: {affinity:.2f} kcal/mol')
 
+if __name__ == "__main__":
+    # Example usage
+    pdb_code = "1a4w"  # Replace with your PDB code
+    smiles = "CCO"     # Replace with your ligand SMILES
+    run_vina(pdb_code, smiles)
